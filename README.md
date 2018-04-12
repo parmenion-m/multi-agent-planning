@@ -16,7 +16,7 @@ DaisyPlanner is a planning algorithm used for assigning tasks to a group of hete
 
 In unstructured environments, where unexpected events can often disrupt the execution of actions, it can be considered impractical
  to devote resources into the estimation of globally optimal plans that consist of long sequences of action assignments.
- Immediate Optimal Planning (IOP) refers to the progressive approaches on planning that develop optimal short-term plans based only on the current state of the world.
+ Immediate Optimal Planning (IOP) refers to the progressive approaches on planning that develop optimal short-term plans based on the current state of the world.
  Short-term optimal plans are created by matching agents to tasks after considering the agents' statuses and skills.
 
 
@@ -83,7 +83,7 @@ where:
 - `MR` is the minimum level of robustness of a given agent across all actions of a given task
 
 In the case that no task is fully available due to action constraints, the agent is assigned the task restricted by the
- least number of constraints
+ least number of constraints.
 
 #### DaisyPlanner v2
 
@@ -91,10 +91,15 @@ In the case that no task is fully available due to action constraints, the agent
 
 To be added...
 
-
 #### RandomPlanner
 
 To be added...
+
+#### Scenario Generator
+
+A scenario generator is implemented for testing the effectiveness of the planning algorithms on an unlimited number of different scenarios, in addition to the baseline scenario of 'salad preparation'.
+ The number of agents in the team, the number of tasks in the behavior and the number of different actions available in the scenario are all customizable.
+ The probabilities of constrains existing between actions of different tasks can also be customized as well.
 
 
 ### Evaluation Metrics
@@ -110,7 +115,8 @@ To be added...
 #### Code dependencies
 
 - Python 3.6
-- Colorama 0.3.9
+- colorama 0.3.9
+- scipy 1.0.1
 
 
 #### Code structure

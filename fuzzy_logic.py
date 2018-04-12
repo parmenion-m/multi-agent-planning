@@ -1,5 +1,6 @@
 
 from numbers import Number
+from scipy.stats import trapz
 
 
 def is_fuzzy_value(a):
@@ -34,6 +35,22 @@ class Fuzzy:
 
     def defuzzify(self):
         return (self.value[0] + 2 * self.value[1] + 2 * self.value[2] + self.value[3]) / 6
+
+    def get_random_value(self):
+        """
+        create a trapezoidal distribution based on the fuzzy number
+        and get a random value from it
+        """
+
+        # trapezoidal distribution parameters
+        loc = self.value[0]
+        scale = self.value[3] - self.value[0]
+        c = (self.value[1] - self.value[0]) / scale
+        d = (self.value[2] - self.value[0]) / scale
+
+        # random value from trapezoidal distribution
+        r = trapz.rvs(c, d, loc=loc, scale=scale)
+        return r
 
     # ----- Get Fuzzy Number / Point -----
 
