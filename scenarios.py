@@ -5,11 +5,13 @@ import random
 class Scenario:
 
     @staticmethod
-    def generic(num_of_agents=2, num_of_tasks=7, num_of_actions=16):
+    def generic(scenario_id, num_of_agents=3, num_of_tasks=7, num_of_actions=16):
 
         if not (isinstance(num_of_agents, int) and isinstance(num_of_tasks, int) and isinstance(num_of_actions, int)
                 and num_of_agents > 0 and num_of_tasks > 0 and num_of_actions > 0):
             raise ValueError('Invalid scenario settings')
+
+        random.seed(scenario_id)
 
         # ----- Actions -----
         actions_ids = random.sample(range(1001, 9999), num_of_actions)
@@ -109,7 +111,7 @@ class Scenario:
             'name': 'Make a Salad!',
             'tasks_specs': [
                 {'id': 101, 'name': 'Place salad on countertop', 'action_list': [1001, 2001, 1002, 3001],
-                 'constraints': {}},
+                 'constraints': {}},  # {2001: ['105-4001']}},  use this to create a constraints loop
                 {'id': 102, 'name': 'Place salad bowl on countertop', 'action_list': [1001, 2002, 1002, 3002],
                  'constraints': {}},
                 {'id': 103, 'name': 'Place olive oil bottle on countertop', 'action_list': [1001, 2003, 1002, 3003],

@@ -1,6 +1,6 @@
 
 import random
-import fuzzy_logic as fl
+import planners
 
 
 class Behavior:
@@ -67,28 +67,28 @@ class Behavior:
                 tasks_list.append(task.id)
         return tasks_list
 
-    def get_least_constrained_tasks_ids(self):
-        """
-        Get available tasks that have the min num of constraints
-        Returns list of tasks' ids
-        """
-        min_constraints = 99999
-        tasks_list = []
-        for task in self.tasks:
-            if task.status == 'available':
-                """
-                many different steps of a task can have many different constraints
-                """
-                constrains_num = 0
-                for action in task.actions:
-                    constrains_num += len(action.constraints)
-
-                if constrains_num < min_constraints:
-                    min_constraints = constrains_num
-                    tasks_list = [task.id]
-                elif constrains_num == min_constraints:
-                    tasks_list.append(task.id)
-        return tasks_list
+    # def get_least_constrained_tasks_ids(self):
+    #     """
+    #     Get available tasks that have the min num of constraints
+    #     Returns list of tasks' ids
+    #     """
+    #     min_constraints = 99999
+    #     tasks_list = []
+    #     for task in self.tasks:
+    #         if task.status == 'available':
+    #             """
+    #             many different steps of a task can have many different constraints
+    #             """
+    #             constrains_num = 0
+    #             for action in task.actions:
+    #                 constrains_num += len(action.constraints)
+    #
+    #             if constrains_num < min_constraints:
+    #                 min_constraints = constrains_num
+    #                 tasks_list = [task.id]
+    #             elif constrains_num == min_constraints:
+    #                 tasks_list.append(task.id)
+    #     return tasks_list
 
 
 class Task:
@@ -232,12 +232,13 @@ class Team:
     current_behavior = None
 
     logger = None
+    reporter = None
 
-    def __init__(self, team_specs, logger):
+    def __init__(self, team_specs, logger, reporter):
 
         agents = []
         for agent_specs in team_specs['agents_specs']:
-            agents.append(Agent(agent_specs['id'], agent_specs['name'], agent_specs['skills'], logger))
+            agents.append(Agent(agent_specs['id'], agent_specs['name'], agent_specs['skills'], logger, reporter))
 
         self.id = team_specs['id']
         self.name = team_specs['name']
@@ -257,35 +258,15 @@ class Team:
 
     def assign_tasks_to_agents(self):
 
-        for resting_agent in self.get_agents(status_filter='rest'):
+        # ask for assignments
+        assignments = planners.daisy_planner_v1(self)
 
-            # find available tasks & calc their assignment cost
-            ac_scores = {}
-            for considered_task_id in self.current_behavior.get_least_constrained_tasks_ids():
-
-                # initialize total time & min robustness
-                tt = fl.Fuzzy((0, 0))
-                mr = 10
-
-                # for each action of task
-                for action in self.current_behavior[considered_task_id].actions:
-                    # find time needed & robustness expected
-                    t = resting_agent.skills[action.id]['t']
-                    r = resting_agent.skills[action.id]['r']
-                    # update total time & min robustness
-                    tt += fl.Fuzzy(t)
-                    if r < mr:
-                        mr = r
-
-                # calculate assignment cost
-                ac_scores[considered_task_id] = tt.defuzzify() / (1 + mr)
-
-            if ac_scores:
-                # select task with minimum assignment cost
-                selected_task_id = min(ac_scores, key=ac_scores.get)
-
-                # assign selected task to agent
-                resting_agent.assign_task(self.current_behavior[selected_task_id])
+        # assign tasks
+        for agent_id, task_id in assignments.items():
+            if task_id:
+                self[agent_id].assign_task(self.current_behavior[task_id])
+            else:
+                self[agent_id].status = 'sleep'
 
     def progress(self, timestep):
 
@@ -304,13 +285,14 @@ class Team:
             self.current_behavior = None
             self.status = 'rest'
 
-        # check if all agents are waiting at still constrained tasks
-        elif (all([True if agent.status == 'wait' and agent.current_action.status == 'constrained'
-                   else False for agent in self.agents])):
-            # progress blocked - behavior failed
-            self.current_behavior.status = 'failed'
-            self.current_behavior = None
-            self.status = 'rest'
+        # # check if all agents are waiting at still constrained tasks
+        # # NOTE: functional code but not necessary since time limit exists
+        # elif (all([True if agent.status == 'wait' and agent.current_action.status == 'constrained'
+        #            else False for agent in self.agents])):
+        #     # progress blocked - behavior failed
+        #     self.current_behavior.status = 'failed'
+        #     self.current_behavior = None
+        #     self.status = 'rest'
 
     def __getitem__(self, key):
         return self.get_agent_by_id(key)
@@ -344,18 +326,20 @@ class Agent:
     name = None
     skills = None                   # time intervals & robustness levels for every action of every task
 
-    status = None                   # rest / wait / work
+    status = None                   # rest / wait / work / sleep
     current_task = None             # Task
     current_action = None           # Action
 
     logger = None
+    reporter = None
 
-    def __init__(self, agent_id, agent_name, agent_skills, logger):
+    def __init__(self, agent_id, agent_name, agent_skills, logger, reporter):
         self.id = agent_id
         self.name = agent_name
         self.skills = agent_skills
         self.status = 'rest'
         self.logger = logger
+        self.reporter = reporter
 
     def assign_task(self, task):
         """
@@ -412,6 +396,8 @@ class Agent:
 
         # if working, progress current action
         if self.status == 'work':
+            # report agent working
+            self.reporter.report_agent_status(self.id, self.status)
             # make progress on current action
             action_completed = self.current_action.progress(timestep)
             # check if action completed
@@ -419,9 +405,13 @@ class Agent:
                 # self-assign to next action of task / put at rest if no next action exists
                 self.self_assign_action()
 
-        else:  # wait rest
-            # do nothing
+        elif self.status in ['wait', 'sleep']:
+            # report agent waiting/sleeping
+            self.reporter.report_agent_status(self.id, self.status)
             pass
+
+        else:
+            raise ValueError('Why you %s-ing?' % self.status)
 
     # def calc_task_tt(self, task_id):
     #     """

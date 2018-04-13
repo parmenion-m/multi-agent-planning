@@ -40,6 +40,9 @@ class Logger:
                 elif agent.status == 'work':
                     color_start = Fore.GREEN
                     text = '%s-%s' % (agent.current_task.id, agent.current_action.id)
+                elif agent.status == 'sleep':
+                    color_start = Fore.LIGHTBLACK_EX
+                    text = 'SLEEP'
                 else:
                     raise ValueError('Logger: Unknown agent status')
                 color_end = Fore.RESET + Back.RESET
