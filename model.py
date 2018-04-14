@@ -67,29 +67,6 @@ class Behavior:
                 tasks_list.append(task.id)
         return tasks_list
 
-    # def get_least_constrained_tasks_ids(self):
-    #     """
-    #     Get available tasks that have the min num of constraints
-    #     Returns list of tasks' ids
-    #     """
-    #     min_constraints = 99999
-    #     tasks_list = []
-    #     for task in self.tasks:
-    #         if task.status == 'available':
-    #             """
-    #             many different steps of a task can have many different constraints
-    #             """
-    #             constrains_num = 0
-    #             for action in task.actions:
-    #                 constrains_num += len(action.constraints)
-    #
-    #             if constrains_num < min_constraints:
-    #                 min_constraints = constrains_num
-    #                 tasks_list = [task.id]
-    #             elif constrains_num == min_constraints:
-    #                 tasks_list.append(task.id)
-    #     return tasks_list
-
 
 class Task:
 
@@ -231,10 +208,12 @@ class Team:
     status = None           # rest / work
     current_behavior = None
 
+    planner = None
+
     logger = None
     reporter = None
 
-    def __init__(self, team_specs, logger, reporter):
+    def __init__(self, team_specs, planner, logger, reporter):
 
         agents = []
         for agent_specs in team_specs['agents_specs']:
@@ -244,7 +223,9 @@ class Team:
         self.name = team_specs['name']
         self.agents = agents
         self.status = 'rest'
+        self.planner = planner
         self.logger = logger
+        self.reporter = reporter
 
     def assign_behavior(self, behavior):
 
@@ -258,15 +239,17 @@ class Team:
 
     def assign_tasks_to_agents(self):
 
-        # ask for assignments
-        assignments = planners.daisy_planner_v1(self)
+        if self.get_agents(status_filter='rest'):
 
-        # assign tasks
-        for agent_id, task_id in assignments.items():
-            if task_id:
-                self[agent_id].assign_task(self.current_behavior[task_id])
-            else:
-                self[agent_id].status = 'sleep'
+            # ask for assignments from planner
+            assignments = self.planner(self)
+
+            # assign tasks
+            for agent_id, task_id in assignments.items():
+                if task_id:
+                    self[agent_id].assign_task(self.current_behavior[task_id])
+                else:
+                    self[agent_id].status = 'sleep'
 
     def progress(self, timestep):
 

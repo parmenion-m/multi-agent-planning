@@ -1,16 +1,21 @@
 """
-All planners take as input the current instance of the working behavior
-and return a dictionary of assignments in the form {agent_id : task_id}
+All planners take as input the current state of the team (including the working behavior)
+and return a dictionary of assignments in the form of {agent_id : task_id}
 """
 
+from random import shuffle
 import fuzzy_logic as fl
 
 
 def daisy_planner_v1(team):
+    """
+    prefers to assign tasks with less constraints than ones with more
+    chooses between available options based on assignment cost
+    """
 
     assignments = {}
 
-    # --- get available tasks ids with their number of constraints ---
+    # get available tasks ids with their number of constraints
     tasks_available = {}
     for task in team.current_behavior.tasks:
         if task.status == 'available':
@@ -23,10 +28,10 @@ def daisy_planner_v1(team):
                 constraints_num += len(action.constraints)
             tasks_available[task.id] = constraints_num
 
-    # --- for each resting agent ---
+    # for each resting agent
     for resting_agent in team.get_agents(status_filter='rest'):
 
-        # --- get list of tasks ids with the least number of constraints ---
+        # get list of tasks ids with the least number of constraints
         tasks_considered = []
         min_constraints = 99999
         for task_id, constraints_num in tasks_available.items():
@@ -44,7 +49,7 @@ def daisy_planner_v1(team):
 
         else:
 
-            # --- calculate assignment costs for tasks under consideration ---
+            # calculate assignment costs for tasks under consideration
             ac_scores = {}
             for task_id in tasks_considered:
 
@@ -66,6 +71,59 @@ def daisy_planner_v1(team):
                 ac_scores[task_id] = tt.defuzzify() / (1 + mr)
 
             task_selected = min(ac_scores, key=ac_scores.get)
+
+        # create assignment
+        assignments[resting_agent.id] = task_selected
+        # remove task from list of available tasks
+        if task_selected:
+            del tasks_available[task_selected]
+
+    return assignments
+
+
+def random_planner(team):
+    """
+    prefers to assign tasks with less constraints than ones with more
+    chooses randomly between available options
+    """
+
+    assignments = {}
+
+    # get available tasks ids with their number of constraints
+    tasks_available = {}
+    for task in team.current_behavior.tasks:
+        if task.status == 'available':
+            """
+            many different steps of a task can have many different constraints
+            """
+            constraints_num = 0
+            for action in task.actions:
+                # print(action.constraints)
+                constraints_num += len(action.constraints)
+            tasks_available[task.id] = constraints_num
+
+    # for each resting agent
+    for resting_agent in team.get_agents(status_filter='rest'):
+
+        # get list of tasks ids with the least number of constraints
+        tasks_considered = []
+        min_constraints = 99999
+        for task_id, constraints_num in tasks_available.items():
+            if constraints_num < min_constraints:
+                min_constraints = constraints_num
+                tasks_considered = [task_id]
+            elif constraints_num == min_constraints:
+                tasks_considered.append(task_id)
+
+        if len(tasks_considered) == 0:
+            task_selected = None
+
+        elif len(tasks_considered) == 1:
+            task_selected = tasks_considered[0]
+
+        else:
+            shuffle(tasks_considered)
+            task_selected = tasks_considered[0]
 
         # create assignment
         assignments[resting_agent.id] = task_selected
