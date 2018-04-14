@@ -28,7 +28,8 @@ class Scenario:
                 extra_modifier = random.choice([0, 1, 2, 3, 4])
                 duration_min = int(action_base_time * (1-range_modifier)) + extra_modifier
                 duration_max = int(action_base_time * (1+range_modifier)) + extra_modifier
-                agent_skills[action_id] = {'t': (duration_min, duration_max), 'r': 9}
+                robustness = random.choice([5, 6, 7, 8, 9])
+                agent_skills[action_id] = {'t': (duration_min, duration_max), 'r': robustness}
 
             agent_specs = {
                 'id': i,

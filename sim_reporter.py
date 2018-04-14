@@ -11,6 +11,7 @@ class Reporter:
     experiment_id = None
     behavior_report = {}
     agents_report = {}
+    actions_report = {}
 
     def __init__(self, settings, init_data):
 
@@ -23,12 +24,14 @@ class Reporter:
 
         # init behavior report
         self.behavior_report = {
+            'simulation_id': init_data['simulation_id'],
             'scenario_id': init_data['scenario_id'],
             'scenario_type': init_data['scenario_type'],
             'time_max': init_data['time_max'],
             'planner': init_data['planner'],
             'behavior_status': None,
-            'time_spent': None
+            'time_spent': None,
+            'mean_robustness': None
         }
 
         # init agents' reports
@@ -39,10 +42,15 @@ class Reporter:
 
         self.agents_report[agent_id].append(agent_status)
 
+    def report_action_robustness(self, task_id, action_id, robustness):
+
+        self.actions_report['%s-%s' % (task_id, action_id)] = robustness
+
     def report_behavior_status(self, behavior_status, time_spent):
 
         self.behavior_report['behavior_status'] = behavior_status
         self.behavior_report['time_spent'] = time_spent
+        self.behavior_report['mean_robustness'] = sum(self.actions_report.values()) / len(self.actions_report)
 
     def create_report(self):
 
@@ -81,7 +89,10 @@ class Reporter:
         if self.export_enabled:
 
             # check if file exists
-            csv_path = 'reports/experiment_%s.csv' % self.experiment_id if self.experiment_id else 'reports/generic.csv'
+            if self.experiment_id:
+                csv_path = 'reports/experiment_%s_%s.csv' % (self.experiment_id, self.behavior_report['scenario_type'])
+            else:
+                csv_path = 'reports/generic.csv'
             file_preexists = True if path.exists(csv_path) else False
 
             # gather data

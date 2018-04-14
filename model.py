@@ -1,6 +1,5 @@
 
 import random
-import planners
 
 
 class Behavior:
@@ -247,6 +246,7 @@ class Team:
             # assign tasks
             for agent_id, task_id in assignments.items():
                 if task_id:
+                    # assign task to agent
                     self[agent_id].assign_task(self.current_behavior[task_id])
                 else:
                     self[agent_id].status = 'sleep'
@@ -348,8 +348,10 @@ class Agent:
         if next_action is not None:
             # assign next action
             self.current_action = next_action
-            self.logger.agent_assigned_action(self.id, self.current_task.id,
-                                              self.current_action.id, self.current_action.status)
+            self.logger.agent_assigned_action(self.id, self.current_task.id, self.current_action.id,
+                                              self.current_action.status)
+            self.reporter.report_action_robustness(self.current_task.id, self.current_action.id,
+                                                   self.skills[self.current_action.id]['r'])
 
             if self.current_action.status == 'available':
                 # start working
