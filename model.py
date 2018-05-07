@@ -1,5 +1,8 @@
 
-import random
+import fuzzy_logic as fl
+from planners import Planner
+
+from random import randint
 
 
 class Behavior:
@@ -74,6 +77,7 @@ class Task:
     actions = []
 
     status = None           # available / inprogress / completed
+    assigned_to = None      # Agent / None
 
     logger = None
 
@@ -83,6 +87,18 @@ class Task:
         self.actions = task_actions
         self.status = 'available'
         self.logger = logger
+
+    def assignment(self, agent):
+        """
+        called when an agent is assigned to this task
+        """
+        if self.status == 'available':
+            self.status = 'inprogress'
+            for action in self.actions:
+                action.status = 'inqueue'
+            self.assigned_to = agent
+        else:
+            raise ValueError('Cannot assign task %i with status `%s`' % (self.id, self.status))
 
     def update(self, behavior):
 
@@ -112,27 +128,54 @@ class Task:
         else:
             return None
 
-    def get_next_action(self, prev_action_id=None):
+    def get_actions_ids(self):  # , status_filter=None):
         """
-        Get the first action of the task if prev_action is None,
-        or the next action otherwise,
-        or None if prev_action was the last action
-        Returns Action / None
+        Get actions by status
+        Returns list of actions' ids
         """
-        prev_action_found = True if prev_action_id is None else False
+        actions_list = []
         for action in self.actions:
-            if action.id == prev_action_id:
+            actions_list.append(action.id)
+        return actions_list
+
+    def get_prev_action_of(self, action_id=None):
+        """
+        returns Action (previous of action_id, last one if action_id is None)
+        returns None if action is the first action
+        raises error if action wan not in task
+        """
+        last_action = None
+        for action in self.actions:
+            if action.id == action_id:
+                return last_action
+            else:
+                last_action = action
+        if action_id is None:
+            return last_action
+        else:
+            # action given does not exist in task's actions
+            raise ValueError('Action %s does not exist in Task %s' % (action_id, self.id))
+
+    def get_next_action_of(self, action_id=None):
+        """
+        returns Action (next of action_id, first one if action_id is None)
+        returns None if action given is the last action
+        raises error if action wan not in task
+        """
+        action_found = True if action_id is None else False
+        for action in self.actions:
+            if action.id == action_id:
                 # return next action
-                prev_action_found = True
-            elif prev_action_found:
+                action_found = True
+            elif action_found:
                 # return this action
                 return action
-        if prev_action_found:
-            # prev_action was the last action
+        if action_found:
+            # action given was the last action
             return None
         else:
-            # prev_action does not exist in task's actions
-            raise ValueError('Invalid prev_action_id %s for task %s' % (prev_action_id, self.id))
+            # action given does not exist in task's actions
+            raise ValueError('Action %s does not exist in Task %s' % (action_id, self.id))
 
 
 class Action:
@@ -141,7 +184,19 @@ class Action:
     name = None
     constraints = None
 
-    status = None           # available / constrained / inprogress / completed
+    status = None           # inqueue / inwaiting / inprogress / completed
+    """
+    inqueue does not care about constraints
+    to see if there are active constraints check action.constraints
+    when constraints are met, they are removed
+    
+    None            task not assigned (available)
+    inqueue         task assigned (inprogress) - action not assigned
+    inwaiting       task assigned (inprogress) - action assigned but not started (action setup not yet / agent waiting)
+    inprogress      task assigned (inprogress) - action assigned and started (action setup ok / agent working)
+    completed       task assigned (inprogress or completed) - action completed (no agent assigned)
+    """
+    assigned_to = None      # Agent / None
     __act_time_left = None
 
     logger = None
@@ -150,15 +205,30 @@ class Action:
         self.id = action_id
         self.name = action_name
         self.constraints = action_constraints
-        self.status = 'constrained' if self.constraints else 'available'
         self.logger = logger
 
-    def setup(self, time_interval):
-        if self.status == 'available':
-            self.status = 'inprogress'
-            self.__act_time_left = random.randint(time_interval[0], time_interval[1])
+    def assignment(self, agent):
+        """
+        called when an agent is assigned to this action
+        """
+        if self.status == 'inqueue':
+            self.status = 'inwaiting'
+            self.assigned_to = agent
         else:
             raise ValueError('Cannot assign action %i with status `%s`' % (self.id, self.status))
+
+    def setup(self, fuzzy_time):
+        """
+        called when an agent starts working on this action
+        """
+        if self.status == 'inwaiting' and not self.constraints:
+            self.status = 'inprogress'
+            # get rv from trapezoidal distribution (issue with cereal scenario)
+            # self.__act_time_left = fuzzy_time.get_random_value()
+            # get rv from uniform distribution
+            self.__act_time_left = randint(fuzzy_time.value[1], fuzzy_time.value[2])
+        else:
+            raise ValueError('Cannot start action %i with status `%s`' % (self.id, self.status))
 
     def progress(self, timestep):
         """
@@ -169,6 +239,7 @@ class Action:
             if self.__act_time_left <= 0:
                 # action completed
                 self.status = 'completed'
+                self.assigned_to = None
                 self.__act_time_left = None
                 self.logger.action_completed(self.id)
                 return True
@@ -180,7 +251,7 @@ class Action:
     def update(self, behavior):
 
         # check if any constraints are met and remove them
-        if self.status == 'constrained':
+        if self.constraints:
             to_remove = []
             for constraint in self.constraints:
                 constraining_task_id, constraining_action_id = map(int, constraint.split('-'))
@@ -191,11 +262,6 @@ class Action:
             # remove obsolete constraints
             for item in to_remove:
                 self.constraints.remove(item)
-
-            # make action available if not constraint left
-            if not self.constraints:
-                self.status = 'available'
-                self.logger.action_available(self.id)
 
 
 class Team:
@@ -212,7 +278,7 @@ class Team:
     logger = None
     reporter = None
 
-    def __init__(self, team_specs, planner, logger, reporter):
+    def __init__(self, team_specs, planner_type, logger, reporter):
 
         agents = []
         for agent_specs in team_specs['agents_specs']:
@@ -222,9 +288,9 @@ class Team:
         self.name = team_specs['name']
         self.agents = agents
         self.status = 'rest'
-        self.planner = planner
         self.logger = logger
         self.reporter = reporter
+        self.planner = Planner(planner_type, self)
 
     def assign_behavior(self, behavior):
 
@@ -238,18 +304,16 @@ class Team:
 
     def assign_tasks_to_agents(self):
 
-        if self.get_agents(status_filter='rest'):
+        if self.get_agents(status_filter='rest') and self.current_behavior.get_tasks_ids(status_filter='available'):
 
             # ask for assignments from planner
-            assignments = self.planner(self)
+            assignments = self.planner()
 
             # assign tasks
             for agent_id, task_id in assignments.items():
                 if task_id:
                     # assign task to agent
                     self[agent_id].assign_task(self.current_behavior[task_id])
-                else:
-                    self[agent_id].status = 'sleep'
 
     def progress(self, timestep):
 
@@ -263,10 +327,10 @@ class Team:
         # update behavior / tasks / actions statuses
         self.current_behavior.update()
 
-        # check if behavior completed
-        if self.current_behavior.status == 'completed':
-            self.current_behavior = None
-            self.status = 'rest'
+        # check if behavior completed [functional but not needed]
+        # if self.current_behavior.status == 'completed':
+        #     self.current_behavior = None
+        #     self.status = 'rest'
 
         # # check if all agents are waiting at still constrained tasks
         # # NOTE: functional code but not necessary since time limit exists
@@ -307,11 +371,12 @@ class Agent:
 
     id = None
     name = None
-    skills = None                   # time intervals & robustness levels for every action of every task
+    skills = None                   # fuzzy time (t), robustness (r), error (e) for every action
 
-    status = None                   # rest / wait / work / sleep
+    status = None                   # rest / wait / work
     current_task = None             # Task
     current_action = None           # Action
+    exp_time_left_action = None     # Fuzzy or None (None when agent waiting or no current task/action assignment)
 
     logger = None
     reporter = None
@@ -319,6 +384,21 @@ class Agent:
     def __init__(self, agent_id, agent_name, agent_skills, logger, reporter):
         self.id = agent_id
         self.name = agent_name
+
+        # add robustness/error level where needed in agent's skills
+        # robustness = 10 - error
+        for action_id, skill_stats in agent_skills.items():
+            if not(set(skill_stats.keys()) == {'t', 'r'} or set(skill_stats.keys()) == {'t', 'e'}):
+                raise ValueError('Unexpected skill_stats `%s`' % skill_stats.keys())
+            if 'r' in skill_stats.keys():
+                agent_skills[action_id]['e'] = 10 - agent_skills[action_id]['r']
+            elif 'e' in skill_stats.keys():
+                agent_skills[action_id]['r'] = 10 - agent_skills[action_id]['e']
+
+        # convert time intervals to fuzzy times
+        for action_id in agent_skills.keys():
+            agent_skills[action_id]['t'] = fl.Fuzzy(agent_skills[action_id]['t'])
+
         self.skills = agent_skills
         self.status = 'rest'
         self.logger = logger
@@ -330,12 +410,8 @@ class Agent:
         """
         # task assignment
         self.current_task = task
+        self.current_task.assignment(self)
         self.logger.agent_assigned_task(self.id, self.current_task.id)
-        if self.current_task.status == 'available':
-            self.current_task.status = 'inprogress'
-        else:
-            raise ValueError('Cannot assign task %i with status `%s`'
-                             % (self.current_task.id, self.current_task.status))
         # action assignment
         self.self_assign_action()
 
@@ -344,39 +420,44 @@ class Agent:
         Called by agent to self-assign the next action of current task
         """
         prev_action_id = self.current_action.id if self.current_action is not None else None
-        next_action = self.current_task.get_next_action(prev_action_id)
+        next_action = self.current_task.get_next_action_of(prev_action_id)
         if next_action is not None:
             # assign next action
             self.current_action = next_action
+            self.current_action.assignment(self)
             self.logger.agent_assigned_action(self.id, self.current_task.id, self.current_action.id,
                                               self.current_action.status)
             self.reporter.report_action_robustness(self.current_task.id, self.current_action.id,
                                                    self.skills[self.current_action.id]['r'])
 
-            if self.current_action.status == 'available':
-                # start working
-                self.current_action.setup(self.skills[self.current_action.id]['t'])
-                self.status = 'work'
-                self.logger.agent_started_working(self.id, self.current_task.id, self.current_action.id)
-            elif self.current_action.status == 'constrained':
+            if self.current_action.constraints:
                 # start waiting
                 self.status = 'wait'
+                self.exp_time_left_action = None
+
             else:
-                raise ValueError('Cannot assign action %i with status `%s`'
-                                 % (self.current_action.id, self.current_action.status))
+                # start working
+                self.status = 'work'
+                self.exp_time_left_action = self.skills[self.current_action.id]['t']
+                self.current_action.setup(self.skills[self.current_action.id]['t'])
+                self.logger.agent_started_working(self.id, self.current_task.id, self.current_action.id)
+
         else:
             # if no next action exists, put agent to rest
             self.status = 'rest'
             self.current_task = None
             self.current_action = None
+            self.exp_time_left_action = None
             self.logger.agent_at_rest(self.id)
 
     def progress(self, timestep):
 
         # if waiting, check if no need to wait any longer
-        if self.status == 'wait' and self.current_action.status == 'available':
-            self.current_action.setup(self.skills[self.current_action.id]['t'])
+        if self.status == 'wait' and not self.current_action.constraints:
+            # start working
             self.status = 'work'
+            self.exp_time_left_action = self.skills[self.current_action.id]['t']
+            self.current_action.setup(self.skills[self.current_action.id]['t'])
             self.logger.agent_started_working(self.id, self.current_task.id, self.current_action.id)
 
         # if working, progress current action
@@ -389,56 +470,47 @@ class Agent:
             if action_completed:
                 # self-assign to next action of task / put at rest if no next action exists
                 self.self_assign_action()
+            else:
+                # roll left timestep from exp_time_left_action
+                # (same as subtract but fuzzy points cannot go below 0)
+                self.exp_time_left_action = self.exp_time_left_action.roll_left(timestep)
 
-        elif self.status in ['wait', 'sleep']:
-            # report agent waiting/sleeping
+        elif self.status in ['rest', 'wait']:
+            # report agent resting/waiting/
             self.reporter.report_agent_status(self.id, self.status)
             pass
 
         else:
             raise ValueError('Why you %s-ing?' % self.status)
 
-    # def calc_task_tt(self, task_id):
-    #     """
-    #     get total time needed for agent to complete all steps of given task
-    #     returns fuzzy
-    #     """
-    #     tt = fl.Fuzzy((0, 0))
-    #     for action_skills in self.skills[task_id].values():
-    #         interval = action_skills['t']
-    #         tt += fl.Fuzzy(interval)
-    #     return tt
-    #
-    # def calc_task_mr(self, task_id):
-    #     """
-    #     get minimum robustness level for agent across all steps of given task
-    #     returns crisp
-    #     """
-    #     mr = 10
-    #     for action_skills in self.skills[task_id].values():
-    #         robustness = action_skills['r']
-    #         if mr > robustness:
-    #             mr = robustness
-    #     return mr
-    #
-    # def calc_task_ac(self, task_id):
-    #     """
-    #     get assignment cost for assigning given task to agent
-    #     returns crisp
-    #     """
-    #     tt = fl.Fuzzy((0, 0))
-    #     mr = 10
-    #     for action_skills in self.skills[task_id].values():
-    #         interval = action_skills['t']
-    #         tt += fl.Fuzzy(interval)
-    #         robustness = action_skills['r']
-    #         if mr > robustness:
-    #             mr = robustness
-    #     ac = tt.defuzzify() / (1 + mr)
-    #     return ac
-    #
-    # def get_action_t(self, task_id, action_id):
-    #     return fl.Fuzzy(self.skills[task_id][action_id]['t'])
-    #
-    # def get_action_r(self, task_id, action_id):
-    #     return self.skills[task_id][action_id]['r']
+    def calc_actions_tt(self, actions_list):
+        """
+        get total time needed for agent to complete all actions of given list
+        returns fuzzy
+        """
+        tt = fl.Fuzzy((0, 0))
+        for action_id in actions_list:
+            tt += self.skills[action_id]['t']
+        return tt
+
+    def calc_actions_mr(self, actions_list):
+        """
+        get minimum robustness expected from agent to complete all actions of given list
+        returns crisp
+        """
+        mr = 10
+        for action_id in actions_list:
+            if mr > self.skills[action_id]['r']:
+                mr = self.skills[action_id]['r']
+        return mr
+
+    def calc_actions_me(self, actions_list):
+        """
+        get maximum error expected from agent to complete all actions of given list
+        returns crisp
+        """
+        me = 0
+        for action_id in actions_list:
+            if me < self.skills[action_id]['e']:
+                me = self.skills[action_id]['e']
+        return me

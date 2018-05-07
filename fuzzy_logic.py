@@ -69,7 +69,9 @@ class Fuzzy:
     # ----- Numeric Operations -----
 
     def __add__(self, other):
-        if isinstance(other, Fuzzy):
+        if other is None:
+            return None
+        elif isinstance(other, Fuzzy):
             result = tuple(sum(x) for x in zip(self.value, other.value))
             return Fuzzy(value=result)
         elif isinstance(other, Number):
@@ -79,8 +81,13 @@ class Fuzzy:
             raise TypeError("unsupported operand type(s) for +: 'Fuzzy' and '%s'" % type(other))
 
     def __sub__(self, other):
-        if isinstance(other, Fuzzy):
-            result = tuple(v[0]-v[1] for v in zip(self.value, other.value))
+        if other is None:
+            return None
+        elif isinstance(other, Fuzzy):
+            result = (self.value[0] - other.value[3],
+                      self.value[1] - other.value[2],
+                      self.value[2] - other.value[1],
+                      self.value[3] - other.value[0])
             return Fuzzy(value=result)
         elif isinstance(other, Number):
             result = tuple(v - other for v in self.value)
@@ -101,6 +108,13 @@ class Fuzzy:
             return Fuzzy(value=result)
         else:
             raise TypeError("unsupported operand type(s) for /: 'Fuzzy' and '%s'" % type(other))
+
+    def roll_left(self, other):
+        if isinstance(other, Number):
+            result = tuple(max(v - other, 0.0) for v in self.value)
+            return Fuzzy(value=result)
+        else:
+            raise TypeError("unsupported operand type(s) for -: 'Fuzzy' and '%s'" % type(other))
 
     # ----- Comparison Operations -----
     """
