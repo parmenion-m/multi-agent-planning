@@ -144,7 +144,7 @@ AV = MR<sup>m</sup> / TT<sup>(1-m)</sup>
 ```
 where:
 - `MR` is the minimum level of robustness expected of a given agent across all actions of a given task
-- `TT` is the total time needed for the an agent to complete a task, considering the time expected for the agent to be available and the time expected for the task to be free of constraints
+- `TT` is the total time needed for an agent to complete a task, considering the time expected for the agent to be available and the time expected for the task to be free of constraints
 - `m` is the planners hyperparameter which takes values in the `[0,1]` and shows if the assignments should be made based only on robustness (`0`), or only on total time (`1`), or on any weighted combination of the two (e.g. `0.5`)
 
 Maximum vanilla score (`MVS`) for a given task is the maximum value of vanilla scores (`VS`) a task can have by being assigned to different agents of the team.
@@ -211,23 +211,28 @@ The statistics provided for assessing each algorithms efficiency, after a suffic
 | [experiment.py](/experiment.py) | Contains class Experiment, used for running simulations multiple times on different scenarios and planners. |
 | [sim_logger.py](/sim_logger.py) | Contains class Logger, used for live logging of the simulation. |
 | [sim_reporter.py](/sim_reporter.py) | Contains class Reporter, used for storing results from simulations / experiments in csv files. |
+| [analysis.py](/analysis.py) | Contains the code for analyzing the produced csv files |
 
 
 ### Code dependencies
 
 - Python 3.6
-- scipy 1.0.1
+- scipy 1.1.0
 - colorama 0.3.9
+- pandas 0.22.0
+- matplotlib 2.2.2
 
 
 ### Running the code
 
-- To run a **single simulation**, set the desired simulation parameters at the end of the simulation.py file, and run it with the command `python simulation.py` while inside the project directory.
+- To run a **single simulation**, set the desired simulation parameters at the end of the `simulation.py` file, and run the script with the command `python simulation.py` while inside the project directory.
 By setting `logger_verbose_level` to `basic` in the simulation parameters, the whole history of states and actions of the simulation will be printed.
 
-- To run a **full experiment**, set the desired experiment parameters at the end of the experiment.py file, and run it with the command `python experiment.py` while inside the project directory.
-By default the reporter will produce a csv file containing the experiment results and save it in the `/reports` folder inside the project directory.
+- To run a **full experiment**, set the desired experiment parameters at the end of the `experiment.py` file, and run the script with the command `python experiment.py` while inside the project directory.
+By default, the reporter will produce a csv file containing the experiment results and save it in the `/reports` folder inside the project directory.
 
+- To run an **analysis**, input the csv filename at the corresponding variable at the top of the `analysis.py` file, and run the script with the command `python analysis.py` while inside the project directory.
+By default, the results will be printed on the console and the corresponding plots will be saved in the `/reports` folder inside the project directory.
 
 
 ## References

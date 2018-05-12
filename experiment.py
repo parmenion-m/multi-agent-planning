@@ -51,7 +51,7 @@ class Experiment:
                         'reporter_export': True,
                     }
 
-                    # todo skip if row exists - place exp size in filename
+                    # todo skip if row exists - place experiment size in filename
 
                     trial_num += 1
                     if trial_num % 100 == 0:
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     # ----- prepare settings -----
     experiment_settings = {
         'experiment_id': 1000,
-        'scenario_type': 'custom_3_10',     # salad / cereal / custom_2_7 (agents, tasks)
+        'scenario_type': 'custom_5_20',     # salad / cereal / custom_2_7 (agents, tasks)
         'num_of_scenarios': 100,            # num of different scenarios to be generated (custom scenarios only)
         'num_of_simulations': 10,           # num of times each scenario to be run
         'planners': ['base', 'base+', 'dpv1', 'dpv2', 'new-0.0', 'new-0.5', 'new-1.0'],
