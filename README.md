@@ -4,10 +4,10 @@ The purpose of this project is to simulate a multi-agent collaboration scenario 
  efficiency that different planning algorithms have.
 
 More specifically this work tries to compare the effectiveness of different published and proposed
- versions of the DaisyPlanner algorithm, presented by the work of ICS-FORTH researchers
+ versions of the Daisy Planner algorithm, presented by the work of ICS-FORTH researchers
  Michail Maniadakis, Panos Trahanias, et.al. on multi-agent collaboration task planning.
 
-DaisyPlanner is a planning algorithm used for assigning tasks to a group of heterogeneous agents according to their skills.
+Daisy Planner is a planning algorithm used for assigning tasks to a group of heterogeneous agents according to their skills.
 It employs Immediate Optimal Planning and Multi-Criteria Evaluation in an effort to be a fast, flexible and effective
  solution to the planning problem.
 
@@ -22,7 +22,7 @@ In unstructured environments, where unexpected events can often disrupt the exec
 
 ### Multi-Criteria Evaluation
 
-DaisyPlanner considers composite time-informed criteria that enable the ranking of alternative assignments of tasks to agents.
+Daisy Planner considers composite time-informed criteria that enable the ranking of alternative assignments of tasks to agents.
  Namely, these criteria are the time required for the execution of a task and the quality of performance each agent is expected to achieve.
  Of course the status of each agent and task is also considered during each planning phase.
  Fuzzy numbers are used for encoding the temporal information and crisp values of robustness levels are used for representing the quality of performance expected.
